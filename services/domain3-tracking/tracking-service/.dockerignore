@@ -1,0 +1,8 @@
+bin/
+obj/
+TrackingService.Tests/
+.local-data/
+.vs/
+*.user
+*.suo
+
