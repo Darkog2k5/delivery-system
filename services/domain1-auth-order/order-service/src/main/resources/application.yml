@@ -1,0 +1,34 @@
+server:
+  port: ${SERVER_PORT:8082}
+
+spring:
+  application:
+    name: order-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/order_db}
+    username: ${DB_USER:spx_admin}
+    password: ${DB_PASSWORD:spx_pg_pass_2026}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:spx_user}
+    password: ${RABBITMQ_PASS:spx_pass_2026}
+
+rabbitmq:
+  enabled: ${RABBITMQ_ENABLED:true}
+
+integration:
+  dispatch-event-url: ${DISPATCH_EVENT_URL:http://localhost:8083/api/dispatch/internal/events}
+  tracking-event-url: ${TRACKING_EVENT_URL:http://localhost:8084/api/tracking/internal/events}
+  public-track-base-url: ${PUBLIC_TRACK_BASE_URL:http://localhost:3000/track}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
