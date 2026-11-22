@@ -1,0 +1,19 @@
+package vn.ptit.spx.userservice.common;
+
+public record ApiResponse<T>(int status, String message, T data) {
+    public static <T> ApiResponse<T> ok(T data) {
+        return new ApiResponse<>(200, "Success", data);
+    }
+
+    public static <T> ApiResponse<T> ok(String message, T data) {
+        return new ApiResponse<>(200, message, data);
+    }
+
+    public static <T> ApiResponse<T> created(String message, T data) {
+        return new ApiResponse<>(201, message, data);
+    }
+
+    public static <T> ApiResponse<T> error(int status, String message, T data) {
+        return new ApiResponse<>(status, message, data);
+    }
+}

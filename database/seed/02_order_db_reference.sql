@@ -1,0 +1,37 @@
+-- Reference SQL Seed Schema for Domain 1: OrderDB (PostgreSQL)
+-- Note: order-service also auto-seeds idempotently via DataSeeder on startup.
+
+CREATE TABLE IF NOT EXISTS orders (
+    id BIGSERIAL PRIMARY KEY,
+    tracking_code VARCHAR(32) NOT NULL UNIQUE,
+    customer_code VARCHAR(32) NOT NULL,
+    customer_name VARCHAR(120) NOT NULL,
+    sender_name VARCHAR(120) NOT NULL,
+    sender_phone VARCHAR(20) NOT NULL,
+    sender_address VARCHAR(255) NOT NULL,
+    sender_district VARCHAR(80) NOT NULL,
+    receiver_name VARCHAR(120) NOT NULL,
+    receiver_phone VARCHAR(20) NOT NULL,
+    receiver_address VARCHAR(255) NOT NULL,
+    receiver_district VARCHAR(80) NOT NULL,
+    item_name VARCHAR(200) NOT NULL,
+    actual_weight_gram INTEGER NOT NULL,
+    length_cm DOUBLE PRECISION NOT NULL,
+    width_cm DOUBLE PRECISION NOT NULL,
+    height_cm DOUBLE PRECISION NOT NULL,
+    volumetric_weight_gram INTEGER NOT NULL,
+    chargeable_weight_gram INTEGER NOT NULL,
+    distance_km DOUBLE PRECISION NOT NULL,
+    shipping_fee BIGINT NOT NULL,
+    cod_amount BIGINT NOT NULL DEFAULT 0,
+    note VARCHAR(255),
+    hub_code VARCHAR(32) NOT NULL,
+    assigned_shipper_code VARCHAR(32),
+    order_status VARCHAR(32) NOT NULL,
+    delivery_attempts INTEGER NOT NULL DEFAULT 0,
+    fail_reason VARCHAR(255),
+    proof_image_url VARCHAR(255),
+    receiver_signature VARCHAR(120),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

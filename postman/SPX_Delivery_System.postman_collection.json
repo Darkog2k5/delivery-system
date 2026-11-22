@@ -1,0 +1,231 @@
+{
+  "info": {
+    "name": "SPX-CLONE-2026 Microservices API Collection",
+    "description": "Bộ API & 12 Test Cases MVP đi qua cổng API Gateway (:8080) tới 3 miền Polyglot Microservices.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Domain 1 - Auth & User Service (:8081 via Gateway :8080)",
+      "item": [
+        {
+          "name": "TC-01: Register Customer (201 then 409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Shop Thử Nghiệm\",\n  \"phone\": \"0901234567\",\n  \"password\": \"123456\",\n  \"role\": \"CUSTOMER\"\n}"
+            }
+          }
+        },
+        {
+          "name": "TC-02a: Login Shop (SHOP_01)",
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const j = pm.response.json(); if (j.data?.accessToken) pm.environment.set('shopToken', j.data.accessToken);"], "type": "text/javascript" }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/api/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"identifier\": \"SHOP_01\",\n  \"password\": \"123456\"\n}" }
+          }
+        },
+        {
+          "name": "TC-02b: Login Shipper (SHIPPER_01)",
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const j = pm.response.json(); if (j.data?.accessToken) pm.environment.set('shipperToken', j.data.accessToken);"], "type": "text/javascript" }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/api/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"identifier\": \"SHIPPER_01\",\n  \"password\": \"123456\"\n}" }
+          }
+        },
+        {
+          "name": "TC-02c: Login Admin (ADMIN_01)",
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const j = pm.response.json(); if (j.data?.accessToken) pm.environment.set('adminToken', j.data.accessToken);"], "type": "text/javascript" }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/api/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"identifier\": \"ADMIN_01\",\n  \"password\": \"123456\"\n}" }
+          }
+        },
+        {
+          "name": "TC-03: Security RBAC - Customer Calls Admin Assign (Expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{shopToken}}" }
+            ],
+            "url": "{{gatewayUrl}}/api/dispatch/assign",
+            "body": { "mode": "raw", "raw": "{\n  \"trackingCode\": \"SPX20260501001\",\n  \"shipperCode\": \"SHIPPER_01\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Domain 1 - Order & Waybill Service (:8082 via Gateway :8080)",
+      "item": [
+        {
+          "name": "Get Locations Catalog",
+          "request": { "method": "GET", "url": "{{gatewayUrl}}/api/orders/locations" }
+        },
+        {
+          "name": "TC-04: Calculate Shipping Fee (UC08)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/api/orders/calculate-fee",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"senderDistrict\": \"Quận 1\",\n  \"receiverDistrict\": \"TP. Thủ Đức\",\n  \"actualWeightGram\": 2500,\n  \"lengthCm\": 30,\n  \"widthCm\": 20,\n  \"heightCm\": 15\n}"
+            }
+          }
+        },
+        {
+          "name": "TC-05a: Create New Order (UC06)",
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const j = pm.response.json(); if (j.data?.trackingCode) pm.environment.set('trackingCode', j.data.trackingCode);"], "type": "text/javascript" }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{shopToken}}" }
+            ],
+            "url": "{{gatewayUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"senderAddress\": \"120 Lê Lợi\",\n  \"senderDistrict\": \"Quận 1\",\n  \"receiverName\": \"Nguyễn Văn Khách\",\n  \"receiverPhone\": \"0909555666\",\n  \"receiverAddress\": \"88 Võ Văn Ngân\",\n  \"receiverDistrict\": \"TP. Thủ Đức\",\n  \"itemName\": \"Áo Khoác Thời Trang\",\n  \"actualWeightGram\": 2500,\n  \"lengthCm\": 30,\n  \"widthCm\": 20,\n  \"heightCm\": 15,\n  \"codAmount\": 500000\n}"
+            }
+          }
+        },
+        {
+          "name": "TC-05b: Get A6 Shipping Label (UC09)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{shopToken}}" }],
+            "url": "{{gatewayUrl}}/api/orders/{{trackingCode}}/label"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Domain 2 - Dispatch Service (:8083 via Gateway :8080)",
+      "item": [
+        {
+          "name": "TC-07a: Admin Master Dashboard (UC26)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{gatewayUrl}}/api/dispatch/dashboard?status=CREATED"
+          }
+        },
+        {
+          "name": "TC-07b: Admin Assign Order to Shipper",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{gatewayUrl}}/api/dispatch/assign",
+            "body": { "mode": "raw", "raw": "{\n  \"trackingCode\": \"{{trackingCode}}\",\n  \"shipperCode\": \"SHIPPER_01\"\n}" }
+          }
+        },
+        {
+          "name": "TC-08a: Shipper Toggle Online (UC16)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{shipperToken}}" }
+            ],
+            "url": "{{gatewayUrl}}/api/dispatch/shipper/status",
+            "body": { "mode": "raw", "raw": "{\n  \"isOnline\": true\n}" }
+          }
+        },
+        {
+          "name": "TC-08b: Shipper Pickup Orders List (UC17)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{shipperToken}}" }],
+            "url": "{{gatewayUrl}}/api/dispatch/shipper/orders?tab=pickup"
+          }
+        },
+        {
+          "name": "TC-09: Shipper Scan Barcode & Confirm Pickup (UC18)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{shipperToken}}" }
+            ],
+            "url": "{{gatewayUrl}}/api/dispatch/orders/{{trackingCode}}/pickup",
+            "body": { "mode": "raw", "raw": "{\n  \"scannedBarcode\": \"{{trackingCode}}\"\n}" }
+          }
+        },
+        {
+          "name": "TC-10: Shipper Confirm Delivered (UC20)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{shipperToken}}" }
+            ],
+            "url": "{{gatewayUrl}}/api/dispatch/orders/{{trackingCode}}/deliver",
+            "body": { "mode": "raw", "raw": "{\n  \"receiverSignature\": \"Nguyễn Văn Khách\",\n  \"codCollected\": true\n}" }
+          }
+        },
+        {
+          "name": "TC-11: Shipper Report Failed Delivery (UC21)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{shipperToken}}" }
+            ],
+            "url": "{{gatewayUrl}}/api/dispatch/orders/SPX20260501007/fail",
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Không liên lạc được với người nhận\"\n}" }
+          }
+        },
+        {
+          "name": "TC-12: Reject State Machine Skip CREATED -> DELIVERED (Expect 400)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{gatewayUrl}}/api/dispatch/orders/SPX20260501001/status",
+            "body": { "mode": "raw", "raw": "{\n  \"targetStatus\": \"DELIVERED\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Domain 3 - Tracking & Notification Service (:8084 via Gateway :8080)",
+      "item": [
+        {
+          "name": "TC-06a: Public Tracking Valid Code (SPX20260501089)",
+          "request": { "method": "GET", "url": "{{gatewayUrl}}/api/tracking/SPX20260501089" }
+        },
+        {
+          "name": "TC-06b: Public Tracking Invalid Code (SPX999 -> 404)",
+          "request": { "method": "GET", "url": "{{gatewayUrl}}/api/tracking/SPX999" }
+        }
+      ]
+    }
+  ]
+}
