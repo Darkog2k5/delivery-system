@@ -1,0 +1,10 @@
+{
+  "description": "Reference MongoDB seed structure for Domain 3: TrackingDB (CQRS Read Model + Event Store)",
+  "collections": [
+    "tracking_read_models",
+    "tracking_events",
+    "notifications"
+  ],
+  "sampleTrackingCode": "SPX20260501089",
+  "nonExistentTestCode": "SPX999"
+}

@@ -1,0 +1,286 @@
+name: spx-delivery-system
+
+networks:
+  spx-network:
+    name: spx-network
+    driver: bridge
+
+volumes:
+  domain1_db_data:
+  domain1_order_db_data:
+  domain2_db_data:
+  domain3_db_data:
+  rabbitmq_data:
+
+services:
+  # ==========================================================================
+  # INFRASTRUCTURE: MESSAGE BROKER (RABBITMQ) - PORTS 5672 / 15672
+  # ==========================================================================
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: spx-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-spx_user}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-spx_pass_2026}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - spx-network
+    mem_limit: 256m
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ==========================================================================
+  # DATABASES (POLYGLOT PERSISTENCE & DATABASE-PER-SERVICE)
+  # ==========================================================================
+  user-db:
+    image: postgres:16-alpine
+    container_name: spx-user-db
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: ${POSTGRES_USER:-spx_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spx_pg_pass_2026}
+    volumes:
+      - domain1_db_data:/var/lib/postgresql/data
+    networks:
+      - spx-network
+    mem_limit: 256m
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-spx_admin} -d user_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  order-db:
+    image: postgres:16-alpine
+    container_name: spx-order-db
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_USER: ${POSTGRES_USER:-spx_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spx_pg_pass_2026}
+    volumes:
+      - domain1_order_db_data:/var/lib/postgresql/data
+    networks:
+      - spx-network
+    mem_limit: 256m
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-spx_admin} -d order_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  dispatch-db:
+    image: mysql:8.0
+    container_name: spx-dispatch-db
+    command: --performance-schema=OFF --innodb-buffer-pool-size=64M
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-spx_mysql_root_2026}
+      MYSQL_DATABASE: dispatch_db
+      MYSQL_USER: ${MYSQL_USER:-spx_dispatch}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-spx_mysql_pass_2026}
+    volumes:
+      - domain2_db_data:/var/lib/mysql
+    networks:
+      - spx-network
+    mem_limit: 512m
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-spx_mysql_root_2026}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  tracking-db:
+    image: mongo:7.0
+    container_name: spx-tracking-db
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-spx_mongo}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-spx_mongo_pass_2026}
+      MONGO_INITDB_DATABASE: tracking_db
+    volumes:
+      - domain3_db_data:/data/db
+    networks:
+      - spx-network
+    mem_limit: 384m
+    healthcheck:
+      test: [ "CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ==========================================================================
+  # DOMAIN 1: USER SERVICE (:8081) & ORDER SERVICE (:8082) - TRẦN NGUYÊN AN
+  # ==========================================================================
+  user-service:
+    build:
+      context: ./services/domain1-auth-order/user-service
+      dockerfile: Dockerfile
+    container_name: spx-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      SERVER_PORT: 8081
+      SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:postgresql://user-db:5432/user_db
+      DB_USER: ${POSTGRES_USER:-spx_admin}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-spx_pg_pass_2026}
+      JWT_SECRET: ${JWT_SECRET:-SpxDeliverySystemSecretKeyForMicroservices2026PTITNhom24MustBeLongEnough256Bits}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+    depends_on:
+      user-db:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - spx-network
+    mem_limit: 512m
+
+  order-service:
+    build:
+      context: ./services/domain1-auth-order/order-service
+      dockerfile: Dockerfile
+    container_name: spx-order-service
+    ports:
+      - "8082:8082"
+    environment:
+      SERVER_PORT: 8082
+      SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:postgresql://order-db:5432/order_db
+      DB_USER: ${POSTGRES_USER:-spx_admin}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-spx_pg_pass_2026}
+      RABBITMQ_ENABLED: "true"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-spx_user}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:-spx_pass_2026}
+      DISPATCH_EVENT_URL: http://dispatch-service:8083/api/dispatch/internal/events
+      TRACKING_EVENT_URL: http://tracking-service:8084/api/tracking/internal/events
+    depends_on:
+      order-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - spx-network
+    mem_limit: 512m
+
+  # ==========================================================================
+  # DOMAIN 2: DISPATCH SERVICE (:8083) - ĐỖ CAO CƯỜNG (NESTJS + MYSQL)
+  # ==========================================================================
+  dispatch-service:
+    build:
+      context: ./services/domain2-dispatch/dispatch-service
+      dockerfile: Dockerfile
+    container_name: spx-dispatch-service
+    ports:
+      - "8083:8083"
+    environment:
+      PORT: 8083
+      DB_TYPE: mysql
+      DB_HOST: dispatch-db
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER:-spx_dispatch}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-spx_mysql_pass_2026}
+      DB_NAME: dispatch_db
+      RABBITMQ_ENABLED: "true"
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-spx_user}:${RABBITMQ_PASS:-spx_pass_2026}@rabbitmq:5672
+      ORDER_EVENT_URL: http://order-service:8082/api/orders/internal/events
+      TRACKING_EVENT_URL: http://tracking-service:8084/api/tracking/internal/events
+    depends_on:
+      dispatch-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - spx-network
+    mem_limit: 320m
+
+  # ==========================================================================
+  # DOMAIN 3: TRACKING & NOTIFICATION SERVICE (:8084) - PHẠM TUẤN KIỆT (.NET 9 + MONGO)
+  # ==========================================================================
+  tracking-service:
+    build:
+      context: ./services/domain3-tracking/tracking-service
+      dockerfile: Dockerfile
+    container_name: spx-tracking-service
+    ports:
+      - "8084:8084"
+    environment:
+      ASPNETCORE_URLS: http://+:8084
+      STORAGE_MODE: mongo
+      MONGO_CONNECTION_STRING: mongodb://${MONGO_INITDB_ROOT_USERNAME:-spx_mongo}:${MONGO_INITDB_ROOT_PASSWORD:-spx_mongo_pass_2026}@tracking-db:27017/?authSource=admin
+      MONGO_DATABASE: tracking_db
+      RABBITMQ_ENABLED: "true"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-spx_user}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:-spx_pass_2026}
+    depends_on:
+      tracking-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - spx-network
+    mem_limit: 320m
+
+  # ==========================================================================
+  # API GATEWAY (:8080) - TRẦN NGUYÊN AN (SPRING CLOUD GATEWAY)
+  # ==========================================================================
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: spx-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_PORT: 8080
+      JWT_SECRET: ${JWT_SECRET:-SpxDeliverySystemSecretKeyForMicroservices2026PTITNhom24MustBeLongEnough256Bits}
+      USER_SERVICE_URL: http://user-service:8081
+      ORDER_SERVICE_URL: http://order-service:8082
+      DISPATCH_SERVICE_URL: http://dispatch-service:8083
+      TRACKING_SERVICE_URL: http://tracking-service:8084
+    depends_on:
+      - user-service
+      - order-service
+      - dispatch-service
+      - tracking-service
+    restart: on-failure
+    networks:
+      - spx-network
+    mem_limit: 512m
+
+  # ==========================================================================
+  # CLIENT 1: WEB PORTAL (:3000) - ĐỖ CAO CƯỜNG (REACT + VITE + NGINX)
+  # ==========================================================================
+  web-portal:
+    build:
+      context: ./clients/web-portal
+      dockerfile: Dockerfile
+      args:
+        VITE_API_GATEWAY_URL: ${VITE_API_GATEWAY_URL:-http://localhost:8080}
+    container_name: spx-web-portal
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    restart: on-failure
+    networks:
+      - spx-network
+    mem_limit: 128m
