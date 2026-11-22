@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-label,
+  .printable-label * {
+    visibility: visible;
+  }
+  .printable-label {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100mm;
+    min-height: 150mm;
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
